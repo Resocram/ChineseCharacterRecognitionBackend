@@ -1,4 +1,4 @@
-const DATA = require("../public/data/wordBank.json")
+const DATA = require("./wordBank.json")
 
 class GameRoomManager {
     constructor() {
@@ -111,13 +111,13 @@ class Game {
     shouldNext() {
         return Array.from(this.sessions.values()).every(player => player.next === true);
     }
-    resetNext(){
+    resetNext() {
         this.sessions.forEach(player => {
             player.next = false;
         });
     }
 
-    isGameOver(){
+    isGameOver() {
         return this.characters.length === this.round
     }
 
