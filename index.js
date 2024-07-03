@@ -105,6 +105,6 @@ wss.on('connection', (ws, req) => {
 
 
 let port = process.env.PORT || 5000
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server started on port ${port}`);
 });
