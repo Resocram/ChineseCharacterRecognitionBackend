@@ -10,11 +10,11 @@ const { GameRoomManager } = require('./classes.js');
 // Create an array to store game rooms
 const gameRoomManager = new GameRoomManager();
 
-app.use(
-  cors({
-    origin: ['http://localhost:3000', 'https://chinese-character-recognition-client.vercel.app'],
-  })
-);
+// app.use(
+//   cors({
+//     origin: ['http://localhost:3000', 'https://chinese-character-recognition-client.vercel.app'],
+//   })
+// );
 
 app.get('/', (req, res) => {
   console.log("Test server")
