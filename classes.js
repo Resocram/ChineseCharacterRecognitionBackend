@@ -1,4 +1,5 @@
 const DATA = require("./wordBank.json")
+const WebSocket = require('ws');
 
 class GameRoomManager {
     constructor() {
