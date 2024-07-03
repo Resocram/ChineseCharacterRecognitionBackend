@@ -12,7 +12,7 @@ const gameRoomManager = new GameRoomManager();
 
 app.use(
   cors({
-    origin: ['http://localhost:3000', 'https://chinese-character-recognition-client.vercel.app'],
+    origin: ['https://resocram.github.io', 'http://localhost:3000', 'https://chinese-character-recognition-client.vercel.app'],
   })
 );
 
