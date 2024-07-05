@@ -12,20 +12,17 @@ const gameRoomManager = new GameRoomManager();
 
 app.use(
   cors({
-    origin: ['https://resocram.github.io', 'http://localhost:3000', 'https://chinese-character-recognition-client.vercel.app'],
+    origin: ['https://resocram.github.io', 'http://localhost:3000'],
   })
 );
 
 app.get('/', (req, res) => {
-  console.log("Test server")
   res.send("SERVER IS RUNNING")
-
 })
 
 app.post('/api/create-multiplayer', (req, res) => {
   const roomId = gameRoomManager.createRoom();
-  const gameUrl = `/room/${roomId}`;
-  res.send({ gameUrl });
+  res.send({ roomId });
 });
 
 app.get('/api/check-room/:roomId', (req, res) => {
@@ -38,9 +35,6 @@ wss.on('connection', (ws, req) => {
   const params = req.url.split('/')
   const roomId = params[1]
   const sessionId = params[2]
-  console.log("receiving a connection")
-  console.log("room id is ")
-  console.log(roomId)
 
   const game = gameRoomManager.getRoom(roomId)
 
