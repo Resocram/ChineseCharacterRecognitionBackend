@@ -53,8 +53,17 @@ class Game {
     constructor() {
         this.difficultyStart = 0
         this.difficultyEnd = 1000
-        this.characters = []
-        this.round = 0
+        this.problems = []
+        this.round = 1 
+        this.colours = [
+            '#00C3E3', // Light Blue (I block)
+            '#52D017', // Green (S block)
+            '#ED2939', // Red (Z block)
+            '#F7D308', // Yellow (O block)
+            '#F68F1E', // Orange (L block)
+            '#A05ACF', // Purple (T block)
+            '#0E6AC4', // Blue (J block)
+          ]
         // Key is sessionId, Value is Player
         this.sessions = new Map()
     }
@@ -63,7 +72,7 @@ class Game {
         if (this.playerExists(sessionId)) {
             console.log("Session already exists")
         } else {
-            this.sessions.set(sessionId, new Player())
+            this.sessions.set(sessionId, new Player(this.colours[this.sessions.size % this.colours.length])) 
         }
         return this.getPlayer(sessionId)
     }
@@ -119,7 +128,7 @@ class Game {
     }
 
     isGameOver() {
-        return this.characters.length === this.round
+        return this.problems.length === (this.round - 1)
     }
 
     // BROADCAST FUNCTIONS
@@ -140,11 +149,11 @@ class Game {
     }
 
     broadcastStart(difficultyStart, difficultyEnd) {
-        this.characters = this.shuffleArray(DATA.slice(difficultyStart, difficultyEnd))
+        this.problems = this.shuffleArray(DATA.slice(difficultyStart, difficultyEnd))
         this.sessions.forEach((player) => {
             player.ws.forEach((client) => {
                 if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify({ type: 'start_game', characters: this.characters, round: this.round }));
+                    client.send(JSON.stringify({ type: 'start_game', problems: this.problems, round: this.round }));
                 }
             })
         })
@@ -160,7 +169,7 @@ class Game {
         })
     }
 
-    broadcastRound() {
+    broadcastRound(correct_player) {
         const sessionsObj = {};
         this.sessions.forEach((player, sessionId) => {
             sessionsObj[sessionId] = player;
@@ -168,7 +177,7 @@ class Game {
         this.sessions.forEach((player) => {
             player.ws.forEach((client) => {
                 if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify({ type: 'update_round', sessions: JSON.stringify(sessionsObj), round: this.round, gameOver: this.isGameOver() }));
+                    client.send(JSON.stringify({ type: 'update_round', sessions: JSON.stringify(sessionsObj), correct_player: correct_player, round: this.round, gameOver: this.isGameOver() }));
                 }
             })
         })
@@ -179,12 +188,13 @@ class Game {
 
 
 class Player {
-    constructor() {
+    constructor(colour = "#000000") {
         this.username = ""
         this.score = 0
         this.ws = []
         this.strokes = []
         this.next = false
+        this.colour = colour
     }
 
     addConnection(connection) {

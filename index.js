@@ -67,14 +67,14 @@ wss.on('connection', (ws, req) => {
       case 'correct_guess':
         player.incrementScore()
         game.incrementRound()
-        game.broadcastRound()
+        game.broadcastRound(player)
         break;
       case 'vote_next':
         player.goNext()
         if (game.shouldNext()) {
           game.resetNext()
           game.incrementRound()
-          game.broadcastRound()
+          game.broadcastRound(null)
         }
         break;
       default:
