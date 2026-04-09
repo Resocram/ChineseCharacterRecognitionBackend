@@ -150,6 +150,7 @@ class Game {
 
     broadcastStart(difficultyStart, difficultyEnd) {
         this.problems = this.shuffleArray(DATA.slice(difficultyStart, difficultyEnd))
+        this.resetNext()
         this.sessions.forEach((player) => {
             player.ws.forEach((client) => {
                 if (client.readyState === WebSocket.OPEN) {
@@ -157,6 +158,17 @@ class Game {
                 }
             })
         })
+        this.broadcastSkipVotes()
+    }
+
+    restartGame(difficultyStart, difficultyEnd) {
+        this.round = 1;
+        this.sessions.forEach((player) => {
+            player.score = 0;
+            player.strokes = [];
+            player.next = false;
+        });
+        this.broadcastStart(difficultyStart, difficultyEnd);
     }
 
     broadcastStrokes(sessionId, strokes) {
@@ -181,6 +193,25 @@ class Game {
                 }
             })
         })
+        this.resetNext()
+        this.broadcastSkipVotes()
+    }
+
+    broadcastSkipVotes() {
+        const skippedCount = Array.from(this.sessions.values()).filter(player => player.next).length;
+        const totalCount = this.sessions.size;
+        
+        this.sessions.forEach((player) => {
+            player.ws.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ type: 'update_skip_votes', skippedCount, totalCount }));
+                }
+            })
+        })
+    }
+
+    broadcastInitialSkipVotes() {
+        this.broadcastSkipVotes();
     }
 
 
@@ -218,7 +249,7 @@ class Player {
     }
 
     goNext() {
-        this.next = true
+        this.next = !this.next;
     }
 }
 

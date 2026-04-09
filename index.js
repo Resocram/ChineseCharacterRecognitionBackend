@@ -71,11 +71,15 @@ wss.on('connection', (ws, req) => {
         break;
       case 'vote_next':
         player.goNext()
+        game.broadcastSkipVotes()
         if (game.shouldNext()) {
           game.resetNext()
           game.incrementRound()
           game.broadcastRound(null)
         }
+        break;
+      case 'restart_game':
+        game.restartGame(data.difficulty[0], data.difficulty[1])
         break;
       default:
         break;
