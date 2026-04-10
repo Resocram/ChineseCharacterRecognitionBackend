@@ -25,10 +25,10 @@ app.post('/api/create-multiplayer', (req, res) => {
   res.send({ roomId });
 });
 
-app.get('/api/check-room/:roomId', (req, res) => {
+app.get('/api/get-room/:roomId', (req, res) => {
   const roomId = req.params.roomId;
-  const exists = gameRoomManager.roomExists(roomId)
-  res.send({ exists });
+  const game = gameRoomManager.getRoom(roomId)
+  res.send({ game });
 });
 
 wss.on('connection', (ws, req) => {
@@ -45,7 +45,6 @@ wss.on('connection', (ws, req) => {
 
   const player = game.createPlayer(sessionId)
   player.addConnection(ws)
-
   ws.on('message', (message) => {
 
     const data = JSON.parse(message);
@@ -78,9 +77,6 @@ wss.on('connection', (ws, req) => {
           game.broadcastRound(null)
         }
         break;
-      case 'restart_game':
-        game.restartGame(data.difficulty[0], data.difficulty[1])
-        break;
       default:
         break;
     }
@@ -97,6 +93,19 @@ wss.on('connection', (ws, req) => {
   ws.on('error', (error) => {
     console.error("WebSocket error:", error);
   });
+
+  ws.send(JSON.stringify({
+    type: 'init_state',
+    game: {
+      difficultyStart: game.difficultyStart,
+      difficultyEnd: game.difficultyEnd,
+      sessions: game.sessions,
+      round: game.round,
+      problems: game.problems,
+      state: game.state
+    },
+    position: player.position
+  }))
 
 });
 

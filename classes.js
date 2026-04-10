@@ -49,6 +49,10 @@ class GameRoomManager {
     }
 }
 
+const LOBBY = "LOBBY";
+const PLAY = "PLAY";
+const GAME_OVER = "GAME_OVER"
+
 class Game {
     constructor() {
         this.difficultyStart = 0
@@ -58,21 +62,32 @@ class Game {
         this.colours = [
             '#00C3E3', // Light Blue (I block)
             '#52D017', // Green (S block)
-            '#ED2939', // Red (Z block)
             '#F7D308', // Yellow (O block)
-            '#F68F1E', // Orange (L block)
             '#A05ACF', // Purple (T block)
+            '#F68F1E', // Orange (L block)
+            '#ED2939', // Red (Z block)
             '#0E6AC4', // Blue (J block)
           ]
         // Key is sessionId, Value is Player
         this.sessions = new Map()
+        this.state = LOBBY
     }
 
     createPlayer(sessionId) {
         if (this.playerExists(sessionId)) {
-            console.log("Session already exists")
+            return this.getPlayer(sessionId)
         } else {
-            this.sessions.set(sessionId, new Player(this.colours[this.sessions.size % this.colours.length])) 
+            const usedColours = Array.from(this.sessions.values()).map(p => p.colour);
+            let playerColour = this.colours[this.sessions.size % this.colours.length];
+            if (usedColours.includes(playerColour)) {
+                const availableColour = this.colours.find(c => !usedColours.includes(c));
+                if (availableColour) {
+                    playerColour = availableColour;
+                } else {
+                    playerColour = '#' + Math.floor(Math.random()*16777215).toString(16);
+                }
+            }
+            this.sessions.set(sessionId, new Player(playerColour)) 
         }
         return this.getPlayer(sessionId)
     }
@@ -128,7 +143,11 @@ class Game {
     }
 
     isGameOver() {
-        return this.problems.length === (this.round - 1)
+        if(this.problems.length === (this.round - 1)){
+            this.state = GAME_OVER
+            return true
+        }
+        return false
     }
 
     // BROADCAST FUNCTIONS
@@ -149,6 +168,9 @@ class Game {
     }
 
     broadcastStart(difficultyStart, difficultyEnd) {
+        this.difficultyStart = difficultyStart
+        this.difficultyEnd = difficultyEnd
+        this.state = PLAY
         this.problems = this.shuffleArray(DATA.slice(difficultyStart, difficultyEnd))
         this.resetNext()
         this.sessions.forEach((player) => {
@@ -159,16 +181,6 @@ class Game {
             })
         })
         this.broadcastSkipVotes()
-    }
-
-    restartGame(difficultyStart, difficultyEnd) {
-        this.round = 1;
-        this.sessions.forEach((player) => {
-            player.score = 0;
-            player.strokes = [];
-            player.next = false;
-        });
-        this.broadcastStart(difficultyStart, difficultyEnd);
     }
 
     broadcastStrokes(sessionId, strokes) {
