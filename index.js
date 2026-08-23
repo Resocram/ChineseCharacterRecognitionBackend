@@ -6,7 +6,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 const cors = require('cors');
-const { GameRoomManager } = require('./classes.js');
+const { GameRoomManager, PLAY } = require('./classes.js');
 // Create an array to store game rooms
 const gameRoomManager = new GameRoomManager();
 
@@ -57,16 +57,21 @@ wss.on('connection', (ws, req) => {
         break;
       case 'start_game':
         let difficulty = data.difficulty
-        game.broadcastStart(difficulty[0], difficulty[1])
+        game.broadcastStart(difficulty[0], difficulty[1], data.numRounds)
         break;
       case 'send_strokes':
         const strokes = data.strokes
         game.broadcastStrokes(sessionId, strokes)
         break;
       case 'correct_guess':
-        player.incrementScore()
-        game.incrementRound()
-        game.broadcastRound(player)
+        // Only the first correct guess for the currently active round counts; this
+        // guards against two players' guesses for the same round both landing before
+        // either client has received the round-advance broadcast.
+        if (data.round === game.round && game.state === PLAY) {
+          player.incrementScore()
+          game.incrementRound()
+          game.broadcastRound(player)
+        }
         break;
       case 'vote_next':
         player.goNext()
@@ -77,17 +82,23 @@ wss.on('connection', (ws, req) => {
           game.broadcastRound(null)
         }
         break;
+      case 'play_again':
+        game.broadcastReturnToLobby()
+        break;
       default:
         break;
     }
   });
 
-  // Remove websocket connection upon close
+  // Remove websocket connection upon close. The player (and their score/history) is kept
+  // around for a grace period in case this is just a page refresh reconnecting shortly after.
   ws.on('close', () => {
     player.removeConnection(ws)
-    game.maybeDelete(sessionId)
-    gameRoomManager.maybeDelete(roomId)
-    game.broadcastUpdatePlayers();
+    game.broadcastUpdatePlayers()
+    game.scheduleDisconnectCleanup(sessionId, () => {
+      game.broadcastUpdatePlayers()
+      gameRoomManager.maybeDelete(roomId)
+    })
   });
 
   ws.on('error', (error) => {
@@ -99,10 +110,11 @@ wss.on('connection', (ws, req) => {
     game: {
       difficultyStart: game.difficultyStart,
       difficultyEnd: game.difficultyEnd,
-      sessions: game.sessions,
+      sessions: Object.fromEntries(game.sessions),
       round: game.round,
       problems: game.problems,
-      state: game.state
+      state: game.state,
+      history: game.roundHistory
     },
     position: player.position
   }))

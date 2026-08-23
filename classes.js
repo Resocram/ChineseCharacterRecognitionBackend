@@ -42,12 +42,15 @@ class GameRoomManager {
 
     maybeDelete(roomId) {
         const room = this.getRoom(roomId)
-        if (room && (room.sessions.length === 0)) {
+        if (room && (room.sessions.size === 0)) {
             this.rooms.delete(roomId)
         }
         return
     }
 }
+
+// How long to keep a disconnected player's score/history around in case it was just a page refresh
+const DISCONNECT_GRACE_MS = 30000;
 
 const LOBBY = "LOBBY";
 const PLAY = "PLAY";
@@ -71,11 +74,15 @@ class Game {
         // Key is sessionId, Value is Player
         this.sessions = new Map()
         this.state = LOBBY
+        // Chronological list of past round outcomes, sent to reconnecting clients so refreshing doesn't lose history
+        this.roundHistory = []
     }
 
     createPlayer(sessionId) {
         if (this.playerExists(sessionId)) {
-            return this.getPlayer(sessionId)
+            const player = this.getPlayer(sessionId)
+            player.cancelRemoval()
+            return player
         } else {
             const usedColours = Array.from(this.sessions.values()).map(p => p.colour);
             let playerColour = this.colours[this.sessions.size % this.colours.length];
@@ -109,13 +116,18 @@ class Game {
     }
 
 
-    // Check if player has any active connections, if not then delete
-    maybeDelete(sessionId) {
+    // Called when a connection closes. Rather than deleting the player (and their score)
+    // immediately, wait a grace period so a page refresh can reconnect without losing state.
+    scheduleDisconnectCleanup(sessionId, onRemoved) {
         const player = this.getPlayer(sessionId)
-        if (player && (player.ws.length === 0)) {
-            this.sessions.delete(sessionId)
-        }
-        return
+        if (!player) return
+        player.cancelRemoval()
+        player.removalTimer = setTimeout(() => {
+            if (player.ws.length === 0) {
+                this.sessions.delete(sessionId)
+                if (onRemoved) onRemoved()
+            }
+        }, DISCONNECT_GRACE_MS)
     }
 
     shuffleArray(array) {
@@ -167,11 +179,14 @@ class Game {
         })
     }
 
-    broadcastStart(difficultyStart, difficultyEnd) {
+    broadcastStart(difficultyStart, difficultyEnd, numRounds) {
         this.difficultyStart = difficultyStart
         this.difficultyEnd = difficultyEnd
         this.state = PLAY
-        this.problems = this.shuffleArray(DATA.slice(difficultyStart, difficultyEnd))
+        const pool = this.shuffleArray(DATA.slice(difficultyStart, difficultyEnd))
+        const roundCount = Math.min(Math.max(Number(numRounds) || pool.length, 1), pool.length)
+        this.problems = pool.slice(0, roundCount)
+        this.roundHistory = []
         this.resetNext()
         this.sessions.forEach((player) => {
             player.ws.forEach((client) => {
@@ -194,6 +209,10 @@ class Game {
     }
 
     broadcastRound(correct_player) {
+        const completedProblem = this.problems[this.round - 2]
+        if (completedProblem) {
+            this.roundHistory.push({ answer: completedProblem, colour: correct_player ? correct_player.colour : null })
+        }
         const sessionsObj = {};
         this.sessions.forEach((player, sessionId) => {
             sessionsObj[sessionId] = player;
@@ -226,6 +245,26 @@ class Game {
         this.broadcastSkipVotes();
     }
 
+    // Resets the room to the lobby (fresh scores/round) so the same players can start another game
+    broadcastReturnToLobby() {
+        this.state = LOBBY
+        this.round = 1
+        this.problems = []
+        this.roundHistory = []
+        this.resetNext()
+        this.sessions.forEach((player) => {
+            player.score = 0
+        })
+        const sessionsObj = Object.fromEntries(this.sessions)
+        this.sessions.forEach((player) => {
+            player.ws.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ type: 'return_to_lobby', sessions: JSON.stringify(sessionsObj) }));
+                }
+            })
+        })
+    }
+
 
 }
 
@@ -238,11 +277,19 @@ class Player {
         this.strokes = []
         this.next = false
         this.colour = colour
+        this.removalTimer = null
     }
 
     addConnection(connection) {
         this.ws.push(connection)
         return
+    }
+
+    cancelRemoval() {
+        if (this.removalTimer) {
+            clearTimeout(this.removalTimer)
+            this.removalTimer = null
+        }
     }
 
     removeConnection(connection) {
@@ -263,7 +310,13 @@ class Player {
     goNext() {
         this.next = !this.next;
     }
+
+    // Excludes non-serializable/internal fields (ws sockets, removalTimer) from broadcasts
+    toJSON() {
+        const { username, score, strokes, next, colour } = this
+        return { username, score, strokes, next, colour }
+    }
 }
 
 
-module.exports = { GameRoomManager, Game, Player };
+module.exports = { GameRoomManager, Game, Player, LOBBY, PLAY, GAME_OVER };
