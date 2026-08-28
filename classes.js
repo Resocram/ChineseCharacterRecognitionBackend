@@ -294,7 +294,9 @@ class Player {
 
     removeConnection(connection) {
         const index = this.ws.indexOf(connection)
-        this.ws.splice(index, 1)
+        if (index !== -1) {
+            this.ws.splice(index, 1)
+        }
         return
     }
 

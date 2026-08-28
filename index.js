@@ -95,10 +95,12 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     player.removeConnection(ws)
     game.broadcastUpdatePlayers()
-    game.scheduleDisconnectCleanup(sessionId, () => {
-      game.broadcastUpdatePlayers()
-      gameRoomManager.maybeDelete(roomId)
-    })
+    if (player.ws.length === 0) {
+      game.scheduleDisconnectCleanup(sessionId, () => {
+        game.broadcastUpdatePlayers()
+        gameRoomManager.maybeDelete(roomId)
+      })
+    }
   });
 
   ws.on('error', (error) => {
